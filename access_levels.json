@@ -1,0 +1,38 @@
+[
+    {
+        "id": 0,
+        "name": "Root",
+        "codename": "root",
+        "description": "Full System Access and Control"
+    },
+    {
+        "id": 1,
+        "name": "Administrator",
+        "codename": "admin",
+        "description": "Access and Control"
+    },
+    {
+        "id": 2,
+        "name": "Manager",
+        "codename": "manager",
+        "description": "Access and Analytics"
+    },
+    {
+        "id": 3,
+        "name": "Technician",
+        "codename": "technician",
+        "description": "Branch Access and Control"
+    },
+    {
+        "id": 4,
+        "name": "Default",
+        "codename": "default",
+        "description": "Default Access"
+    },
+    {
+        "id": 5,
+        "name": "Guest",
+        "codename": "guest",
+        "description": "No System Access"
+    }
+]

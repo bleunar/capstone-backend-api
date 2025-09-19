@@ -1,10 +1,10 @@
 from flask import jsonify
 import datetime
-from config import config
+from app.config import config
 from flask_cors import CORS
-from services.system import get_service_information
-from services.core import get_flask_app
-from services.system import system_check
+from app.services.system import get_service_information
+from app.services.core import get_flask_app
+from app.services.system import system_check
 
 app = get_flask_app()
 app.config["SECRET_KEY"] = config.FLASK_SECRET_KEY
@@ -17,31 +17,31 @@ app.config["JWT_COOKIE_CSRF_PROTECT"] = True
 app.url_map.strict_slashes = False
 
 # ENDPOINTS FROM BLUEPRINTS
-from routes.access_levels import access_levels_bp
+from app.routes.access_levels import access_levels_bp
 app.register_blueprint(access_levels_bp, url_prefix="/access_levels")
 
-from routes.account_settings import bp_account_settings
+from app.routes.account_settings import bp_account_settings
 app.register_blueprint(bp_account_settings, url_prefix="/account_settings")
 
-from routes.account_roles import bp_account_roles
+from app.routes.account_roles import bp_account_roles
 app.register_blueprint(bp_account_roles, url_prefix="/account_roles")
 
-from routes.account_logs import bp_account_logs
+from app.routes.account_logs import bp_account_logs
 app.register_blueprint(bp_account_logs, url_prefix="/account_logs")
 
-from routes.accounts import bp_accounts
+from app.routes.accounts import bp_accounts
 app.register_blueprint(bp_accounts, url_prefix="/accounts")
 
-from routes.locations import bp_locations
+from app.routes.locations import bp_locations
 app.register_blueprint(bp_locations, url_prefix="/locations")
 
-from routes.equipment_sets import bp_equipment_sets
+from app.routes.equipment_sets import bp_equipment_sets
 app.register_blueprint(bp_equipment_sets, url_prefix="/equipment_sets")
 
-from routes.equipment_set_components import bp_equipment_set_components
+from app.routes.equipment_set_components import bp_equipment_set_components
 app.register_blueprint(bp_equipment_set_components, url_prefix="/equipment_set_components")
 
-from routes.equipment_set_history import bp_equipment_set_history
+from app.routes.equipment_set_history import bp_equipment_set_history
 app.register_blueprint(bp_equipment_set_history, url_prefix="/equipment_set_history")
 
 # status endpoint
@@ -58,6 +58,7 @@ def status():
 CORS(app, origins=config.WEB_CLIENT_HOSTS, supports_credentials=True)
 
 # main method
-if __name__ == "__main__":
+def jarvis_deploy_website():
     system_check()
-    app.run(debug=config.FLASK_ENVIRONMENT == "development", host=config.BACKEND_ADDRESS, port=config.BACKEND_PORT)
+    
+    return app

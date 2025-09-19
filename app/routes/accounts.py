@@ -1,10 +1,10 @@
 from flask import Blueprint, jsonify, request
-from services.jwt import require_access
-import services.database as database
-from services.security import generate_id, generate_username, generate_default_password
+from app.services.jwt import require_access
+import app.services.database as database
+from app.services.security import generate_id, generate_username, generate_default_password
 from werkzeug.security import generate_password_hash
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
-from config import config
+from app.config import config
 
 bp_accounts = Blueprint("accounts", __name__)
 

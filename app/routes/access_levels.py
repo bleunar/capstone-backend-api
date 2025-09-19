@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from services.access import get_access_levels, access_level_lookup
+from app.services.access import get_access_levels, access_level_lookup
 from flask_jwt_extended import jwt_required, get_jwt
 
 access_levels_bp = Blueprint("access_level", __name__)

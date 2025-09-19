@@ -1,15 +1,16 @@
-import json
+import json, os
 
 def get_service_information():
-    with open('service_information.json', 'r') as f:
-        data_as_dict = json.load(f)
-        return data_as_dict
+    base = os.path.dirname(__file__)
+    path = os.path.join(base, "..", "service_information.json")
+    with open(path, 'r') as f:
+        return json.load(f)
 
 
 # system startup check
 def system_check() -> bool:
-    from services.core import get_db_connection, get_mail_server
-    from services.log import log
+    from app.services.core import get_db_connection, get_mail_server
+    from app.services.log import log
 
     log.inform("SYSTEM-CHECK", f"\n{'/'*25}  System Check  {25*'/'}\n")
     log.inform("SYSTEM-CHECK", "Starting system check...")
@@ -39,7 +40,7 @@ def system_check() -> bool:
     log.inform("DATABASE-CHECK", "Starting database check...")
 
 
-    from services.initialize import check_account_roles, check_accounts, initialize_root_role, initialize_root_account
+    from app.services.initialize import check_account_roles, check_accounts, initialize_root_role, initialize_root_account
 
     initialize_root_role()
     initialize_root_account()

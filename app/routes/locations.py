@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
-from services.jwt import require_access
-from services.security import generate_id
-import services.database as database
+from app.services.jwt import require_access
+from app.services.security import generate_id
+import app.services.database as database
 from flask_jwt_extended import jwt_required
-from config import config
+from app.config import config
 
 bp_locations = Blueprint("locations", __name__)
 

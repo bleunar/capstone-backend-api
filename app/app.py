@@ -1,5 +1,6 @@
 from flask import jsonify
 import datetime
+from zoneinfo import ZoneInfo
 from app.config import config
 from flask_cors import CORS
 from app.services.system import get_service_information
@@ -44,12 +45,14 @@ app.register_blueprint(bp_equipment_set_components, url_prefix="/equipment_set_c
 from app.routes.equipment_set_history import bp_equipment_set_history
 app.register_blueprint(bp_equipment_set_history, url_prefix="/equipment_set_history")
 
+ph_time = datetime.datetime.now(ZoneInfo("Asia/Manila"))
+
 # status endpoint
 @app.route("/", methods=["GET"])
 def status():
     data = {
         "msg": "api services is up",
-        "date": datetime.datetime.today(),
+        "date": str(ph_time),
         "info": get_service_information()
     }
     return jsonify(data)

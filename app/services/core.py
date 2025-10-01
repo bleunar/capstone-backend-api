@@ -22,9 +22,9 @@ def get_jwt_manager():
 try:
     connection_pool = mysql.connector.pooling.MySQLConnectionPool(
         pool_name="conn-pool-auth",
-        pool_size=config.MYSQL_POOL_SIZE,
+        pool_size=int(config.MYSQL_POOL_SIZE),
         host=config.MYSQL_HOST,
-        port=config.MYSQL_PORT,
+        port=int(config.MYSQL_PORT),
         user=config.MYSQL_USER,
         password=config.MYSQL_PASSWORD,
         database=config.MYSQL_DB,
@@ -54,10 +54,13 @@ def get_db_connection():
 # fetching mail server
 def get_mail_server():
     try:
-        server = smtplib.SMTP(config.MAIL_SERVER_ADDRESS, config.MAIL_SERVER_PORT)
+        server = smtplib.SMTP(config.MAIL_SERVER_ADDRESS, int(config.MAIL_SERVER_PORT))
         server.starttls()
         server.login(config.MAIL_ADDRESS, config.MAIL_PASSKEY)
         return server
-    except:
-        log.error("MAIL_SRV-ERR", "failed to connect with the mail server")
+    except smtplib.SMTPException as e:
+        log.error("MAIL_SRV-ERR", f"SMTP error: {str(e)}")
+        return None
+    except Exception as e:
+        log.error("MAIL_SRV-ERR", f"Failed to connect with mail server: {str(e)}")
         return None

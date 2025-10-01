@@ -1,8 +1,10 @@
 from flask import Blueprint, jsonify, request
 from app.services.jwt import require_access
+from app.services.security import generate_id
 import app.services.database as database
 from flask_jwt_extended import jwt_required
 from app.config import config
+from app.services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_error_response, common_database_error_response
 
 bp_account_roles = Blueprint("account_roles", __name__)
 
@@ -28,13 +30,13 @@ def get():
 
 
     # filter by id
-    if 'id' in request.args:
+    if 'id' in request.args and request.args.get('id'):
         conditional_query.append("ar.id = %s")
         conditional_params.append(request.args.get('id'))
 
 
     # filter by search
-    if 'name' in request.args:
+    if 'name' in request.args and request.args.get('name'):
         conditional_query.append("ar.name = %s")
         conditional_params.append(request.args.get('name'))
 
@@ -45,7 +47,7 @@ def get():
 
     # ORDERING OF RECORDS BY RECENTLY CREATED
     if 'order' in request.args:
-        order = "DESC" if request.args.get('order') == "latest" else "ASC"
+        order = check_order_parameter(request.args.get('order'))
         base_query += f" ORDER BY ar.created_at {order}"
     
     # closing statements
@@ -56,21 +58,25 @@ def get():
 
     # query fails
     if not account_roles_fetch['success']:
-        result = jsonify({
-            "msg": account_roles_fetch['msg']
-        })
-        return result, 400
+        return common_database_error_response(account_roles_fetch)
 
     # success
-    return jsonify({
-        "data": account_roles_fetch['data']
-    }), 200
+    return common_success_response(account_roles_fetch['data'])
 
 
 @bp_account_roles.route("/", methods=["POST"])
 @require_access('root', exact=True)
 def add():
-    data = request.get_json()
+    # Validate JSON payload
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
+
+    # Validate required fields
+    required_fields = ['name']
+    validation_error = check_required_fields(data, required_fields)
+    if validation_error:
+        return validation_error
 
     # setup and fetch data
     name = data.get('name')

@@ -4,6 +4,7 @@ from app.services.security import generate_id
 import app.services.database as database
 from flask_jwt_extended import jwt_required
 from app.config import config
+from app.services.validation import check_json_payload, check_required_fields, common_success_response, common_error_response, common_database_error_response
 
 bp_equipment_sets = Blueprint("equipment_sets", __name__)
 
@@ -43,15 +44,15 @@ def get():
 
 
     # filter by id
-    if 'id' in request.args:
+    if 'id' in request.args and request.args.get('id'):
         conditional_query.append("eq_set.id = %s")
         conditional_params.append(request.args.get('id'))
 
     
     # filter by location_id
-    if 'location_id' in request.args:
+    if 'location_id' in request.args and request.args.get('location_id'):
         conditional_query.append("eq_set.location_id = %s")
-        conditional_params.append(request.args.get('id'))
+        conditional_params.append(request.args.get('location_id'))
 
 
     # build conditional query
@@ -70,25 +71,29 @@ def get():
 
     # query fails
     if not equipment_set_fetch['success']:
-        result = jsonify({
-            "msg": equipment_set_fetch['msg']
-        })
-        return result, 400
+        return common_database_error_response(equipment_set_fetch)
 
     # success
-    return jsonify({
-        "data": equipment_set_fetch['data']
-    }), 200
+    return common_success_response(equipment_set_fetch['data'])
 
 
 @bp_equipment_sets.route("/", methods=["POST"])
 @require_access('admin')
 def add():
-    data = request.get_json()
+    # Validate JSON payload
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
+
+    # Validate required fields
+    required_fields = ['location_id', 'location_set_number']
+    validation_error = check_required_fields(data, required_fields)
+    if validation_error:
+        return validation_error
 
     # setup and fetch data
-    location_id = data.get('location_id')
-    location_set_number = data.get('location_set_number')
+    location_id = data['location_id']
+    location_set_number = data['location_set_number']
 
     requires_avr = data.get('requires_avr', 'true')
     requires_headset = data.get('requires_headset', 'true')
@@ -101,12 +106,6 @@ def add():
     functionability = data.get('functionability', 'stable')
 
     status = data.get('status', 'active')
-
-
-    if any(item is None for item in [location_id, requires_avr, requires_camera, requires_headset, plugged_display_cable, plugged_power_cable, internet_connectivity, functionability, status]):
-        return jsonify({
-            "msg": "forms data incomplete"
-        }), 400
     
 
     base_query = """

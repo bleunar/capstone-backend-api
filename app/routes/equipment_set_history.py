@@ -3,6 +3,7 @@ from app.services.jwt import require_access
 import app.services.database as database
 from flask_jwt_extended import jwt_required
 from app.config import config
+from app.services.validation import check_order_parameter, common_success_response, common_database_error_response
 
 bp_equipment_set_history = Blueprint("equipment_set_history", __name__)
 
@@ -35,29 +36,29 @@ def get():
 
 
     # filter by id
-    if 'id' in request.args:
+    if 'id' in request.args and request.args.get('id'):
         conditional_query.append("eq_his.id = %s")
-        conditional_params.append(request.args.get('id'))
+        conditional_params.append()
 
 
     # filter by account id
-    if 'account_id' in request.args:
+    if 'account_id' in request.args and request.args.get('account_id'):
         conditional_query.append("eq_his.account_id = %s")
         conditional_params.append(request.args.get('account_id'))
     
     # filter by equipment set id
-    if 'account_id' in request.args:
+    if 'equipment_set_id' in request.args and request.args.get('equipment_set_id'):
         conditional_query.append("eq_his.equipment_set_id = %s")
         conditional_params.append(request.args.get('equipment_set_id'))
 
 
     # filter by action
-    if 'component_type' in request.args:
+    if 'component_type' in request.args and request.args.get('component_type'):
         conditional_query.append("eq_his.component_type = %s")
         conditional_params.append(request.args.get('component_type'))
 
     # filter by action
-    if 'action' in request.args:
+    if 'action' in request.args and request.args.get('action'):
         conditional_query.append("eq_his.action = %s")
         conditional_params.append(request.args.get('action'))
 
@@ -68,7 +69,7 @@ def get():
 
     # ORDERING OF RECORDS BY RECENTLY CREATED
     if 'order' in request.args:
-        order = "DESC" if request.args.get('order') == "latest" else "ASC"
+        order = check_order_parameter(request.args.get('order'))
         base_query += f" ORDER BY eq_his.created_at {order}"
     
     # closing statements
@@ -79,15 +80,10 @@ def get():
 
     # query fails
     if not account_logs_fetch['success']:
-        result = jsonify({
-            "msg": account_logs_fetch['msg']
-        })
-        return result, 400
+        return common_database_error_response(account_logs_fetch)
 
     # success
-    return jsonify({
-        "data": account_logs_fetch['data']
-    }), 200
+    return common_success_response(account_logs_fetch['data'])
 
 
 

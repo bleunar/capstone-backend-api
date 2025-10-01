@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from app.services.jwt import require_access
 import app.services.database as database
 from flask_jwt_extended import jwt_required
+from app.services.validation import check_order_parameter, common_success_response, common_database_error_response
 from app.config import config
 
 bp_account_logs = Blueprint("account_logs", __name__)
@@ -31,19 +32,19 @@ def get():
 
 
     # filter by id
-    if 'id' in request.args:
+    if 'id' in request.args and request.args.get('id').isdigit():
         conditional_query.append("al.id = %s")
-        conditional_params.append(request.args.get('id'))
+        conditional_params.append()
 
     
     # filter by account id
-    if 'account_id' in request.args:
+    if 'account_id' in request.args and request.args.get('account_id'):
         conditional_query.append("al.account_id = %s")
         conditional_params.append(request.args.get('account_id'))
 
 
     # filter by action
-    if 'action' in request.args:
+    if 'action' in request.args and request.args.get('action'):
         conditional_query.append("al.action = %s")
         conditional_params.append(request.args.get('action'))
 
@@ -55,7 +56,7 @@ def get():
 
     # ORDERING OF RECORDS BY RECENTLY CREATED
     if 'order' in request.args:
-        order = "DESC" if request.args.get('order') == "latest" else "ASC"
+        order = check_order_parameter(request.args.get('order'))
         base_query += f" ORDER BY al.created_at {order}"
     
     # closing statements
@@ -66,13 +67,8 @@ def get():
 
     # query fails
     if not account_logs_fetch['success']:
-        result = jsonify({
-            "msg": account_logs_fetch['msg']
-        })
-        return result, 400
+        return common_database_error_response(account_logs_fetch)
 
     # success
-    return jsonify({
-        "data": account_logs_fetch['data']
-    }), 200
+    return common_success_response(account_logs_fetch['data'])
 

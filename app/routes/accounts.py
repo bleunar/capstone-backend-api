@@ -5,6 +5,7 @@ from app.services.security import generate_id, generate_username, generate_defau
 from werkzeug.security import generate_password_hash
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.config import config
+from app.services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_error_response, common_database_error_response
 
 bp_accounts = Blueprint("accounts", __name__)
 
@@ -40,20 +41,20 @@ def get(id=None):
 
 
     # filter by id
-    if id:
+    if 'id' in request.args and request.args.get("id"):
         conditional_query.append("a.id = %s")
         conditional_params.append(get_jwt_identity())
-    elif 'id' in request.args:
+    elif id:
         conditional_query.append("a.id = %s")
         conditional_params.append(request.args.get('id'))
 
 
     # filter by search
-    if 'username' in request.args:
+    if 'username' in request.args and request.args.get("username"):
         conditional_query.append("a.username = %s")
         conditional_params.append(request.args.get('username'))
 
-    if 'email' in request.args:
+    if 'email' in request.args and request.args.get("email"):
         conditional_query.append("a.email = %s")
         conditional_params.append(request.args.get('email'))
     
@@ -68,7 +69,7 @@ def get(id=None):
 
     # ORDERING OF RECORDS BY RECENTLY CREATED
     if 'order' in request.args:
-        order = "DESC" if request.args.get('order') == "latest" else "ASC"
+        order = check_order_parameter(request.args.get('order'))
         base_query += f" ORDER BY a.created_at {order}"
     
     # closing statements
@@ -79,36 +80,35 @@ def get(id=None):
 
     # query fails
     if not accounts_fetch['success']:
-        result = jsonify({
-            "msg": accounts_fetch['msg']
-        })
-        return result, 400
+        return common_database_error_response(accounts_fetch)
 
     # success
-    return jsonify({
-        "data": accounts_fetch['data']
-    }), 200
+    return common_success_response(accounts_fetch['data'])
 
 
 @bp_accounts.route("/", methods=["POST"])
 @require_access('admin')
 def add():
-    data = request.get_json()
+    # Validate JSON payload
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
+
+    # Validate required fields
+    required_fields = ['role_id', 'first_name', 'last_name', 'email']
+    validation_error = check_required_fields(data, required_fields)
+    if validation_error:
+        return validation_error
 
     # setup and fetch data
     role_id = data['role_id']
     first_name = data['first_name']
-    middle_name = data['middle_name']
+    middle_name = data.get('middle_name', '')
     last_name = data['last_name']
     email = data['email']
     username = data.get('username', '')
     password = data.get('password', '')
     status = data.get('status', 'active')
-
-    if any(item is None for item in [role_id, first_name, last_name, status]):
-        return jsonify({
-            "msg": "data incomplete"
-        }), 400
 
     # assign username from data if username is set. else, generate a new username via the user's first, middle, and last name
     account_username = username if username else generate_username(first_name, middle_name, last_name)
@@ -148,16 +148,12 @@ def add():
     accounts_added = database.execute_single(base_query, base_params)
 
     if not accounts_added['success']:
-        result = jsonify({
-            "msg": accounts_added['msg']
-        })
-        return result, 400
+        return common_database_error_response(accounts_added)
 
-    result = jsonify({
+    return common_success_response({
         "username": account_username,
         "password": account_password
-    })
-    return result, 200
+    }, "Account created successfully")
 
 
 
@@ -165,7 +161,10 @@ def add():
 @bp_accounts.route("/<id>", methods=["PUT"])
 @require_access('root')
 def edit(id=None):
-    data = request.get_json()
+    # Validate JSON payload
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
 
     if id is None:
         id = get_jwt_identity()
@@ -173,24 +172,23 @@ def edit(id=None):
     account_database_check = database.fetch_scalar('select accounts.password_hash from accounts where accounts.id = %s;', (id, ))
 
     if account_database_check['success'] is False:
-        return jsonify({
-            "msg": account_database_check['msg']
-        })
+        return common_database_error_response(account_database_check)
+
+    # Validate required fields
+    required_fields = ['role_id', 'first_name', 'last_name', 'email']
+    validation_error = check_required_fields(data, required_fields)
+    if validation_error:
+        return validation_error
 
     # fetch data forms
     role_id = data['role_id']
     first_name = data['first_name']
-    middle_name = data['middle_name']
+    middle_name = data.get('middle_name', '')
     last_name = data['last_name']
     email = data['email']
     username = data.get('username', '')
     password = data.get('password', '')
     status = data.get('status', 'active')
-    
-    if any(item is None for item in [role_id, first_name, last_name ]):
-        return jsonify({
-            "msg": "data incomplete"
-        }), 400
     
     # assign username from data if username is set. else, generate a new username via the user's first, middle, and last name
     account_username = username if username else generate_username(first_name, middle_name, last_name)

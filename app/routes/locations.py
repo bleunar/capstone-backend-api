@@ -4,6 +4,7 @@ from app.services.security import generate_id
 import app.services.database as database
 from flask_jwt_extended import jwt_required
 from app.config import config
+from app.services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_database_error_response
 
 bp_locations = Blueprint("locations", __name__)
 
@@ -30,7 +31,7 @@ def get():
 
 
     # filter by id
-    if 'id' in request.args:
+    if 'id' in request.args and request.args.get('id'):
         conditional_query.append("loc.id = %s")
         conditional_params.append(request.args.get('id'))
 
@@ -47,7 +48,7 @@ def get():
 
     # ORDERING OF RECORDS BY RECENTLY CREATED
     if 'order' in request.args:
-        order = "DESC" if request.args.get('order') == "latest" else "ASC"
+        order = check_order_parameter(request.args.get('order'))
         base_query += f" ORDER BY loc.created_at {order}"
     
     # closing statements
@@ -58,32 +59,30 @@ def get():
 
     # query fails
     if not locations_fetch['success']:
-        result = jsonify({
-            "msg": locations_fetch['msg']
-        })
-        return result, 400
+        return common_database_error_response(locations_fetch)
 
     # success
-    return jsonify({
-        "data": locations_fetch['data']
-    }), 200
+    return common_success_response(locations_fetch['data'])
 
 
 @bp_locations.route("/", methods=["POST"])
 @require_access('admin')
 def add():
-    data = request.get_json()
+    # Validate JSON payload
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
+
+    # Validate required fields
+    required_fields = ['name', 'description', 'equipment_layout']
+    validation_error = check_required_fields(data, required_fields)
+    if validation_error:
+        return validation_error
 
     # setup and fetch data
-    name = data.get('name')
-    description = data.get('description', '')
-    equipment_layout = data.get('equipment_layout', '')
-
-
-    if any(item is None for item in [name, description, equipment_layout ]):
-        return jsonify({
-            "msg": "forms data incomplete"
-        }), 400
+    name = data['name']
+    description = data['description']
+    equipment_layout = data['equipment_layout']
 
     base_query = """
         insert into locations

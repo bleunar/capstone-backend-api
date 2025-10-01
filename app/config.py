@@ -17,6 +17,8 @@ class Config:
     JWT_SECRET_KEY = os.environ.get("SECRET_NI_JWT", default_key)
 
     # mail server credentials
+    MAIL_SERVER_ADDRESS = os.environ.get("MAIL_SERVER_ADDRESS", "smpt.changeme.com")
+    MAIL_SERVER_PORT = os.environ.get("MAIL_SERVER_PORT", "123")
     MAIL_ADDRESS = os.environ.get("MAIL_ADDRESS", "changeme@example.com")
     MAIL_PASSKEY =  os.environ.get("MAIL_PASSKEY", "XXX XXXX XXX")
 
@@ -29,6 +31,7 @@ class Config:
     ROOT_ADMIN_PASSWORD = os.environ.get("ROOT_ADMIN_PASSWORD", "changeme123")
 
     # database
+    MYSQL_POOL_SIZE = os.environ.get("MYSQL_POOL_SIZE", 10)
     MYSQL_HOST = os.environ.get("MYSQL_HOST", "localhost")
     MYSQL_PORT = os.environ.get("MYSQL_PORT", "3306")
     MYSQL_DB = os.environ.get("MYSQL_DATABASE", "system_database")

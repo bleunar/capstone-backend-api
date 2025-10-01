@@ -6,6 +6,12 @@ load_dotenv()
 # default key if missing
 default_key = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+
+def strippers(data: str) -> list[str]:
+    if data:
+        return [url.strip() for url in os.environ.get("WEB_CLIENT_HOSTS").split(',')]
+    
+    return ["http://localhost:5173"]
 class Config:
     BACKEND_ADDRESS = os.environ.get("BACKEND_ADDRESS", "0.0.0.0")
     BACKEND_PORT = os.environ.get("BACKEND_PORT", 5000)
@@ -39,15 +45,8 @@ class Config:
     MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "changeme123")
 
     # web client
-    WEB_CLIENT_HOSTS = []
+    WEB_CLIENT_HOSTS = strippers()
 
     access_levels = app.services.access.access_level_lookup()
 
 config = Config()
-
-
-def strippers(data: str):
-    if data:
-        return [url.strip() for url in os.environ.get("WEB_CLIENT_HOSTS").split(',')]
-    
-    return ["http://localhost:5173"]

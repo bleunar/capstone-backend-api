@@ -22,8 +22,9 @@ def get_jwt_manager():
 try:
     connection_pool = mysql.connector.pooling.MySQLConnectionPool(
         pool_name="conn-pool-auth",
-        pool_size=10,
+        pool_size=config.MYSQL_POOL_SIZE,
         host=config.MYSQL_HOST,
+        host=config.MYSQL_PORT,
         user=config.MYSQL_USER,
         password=config.MYSQL_PASSWORD,
         database=config.MYSQL_DB,
@@ -50,19 +51,13 @@ def get_db_connection():
         return None
 
 
-# fetching access levels
-def get_access_levels():
-    with open('access_levels.json', 'r') as f:
-        data_as_dict = json.load(f)
-        return list(data_as_dict.values())
-
-
 # fetching mail server
 def get_mail_server():
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP(config.MAIL_SERVER_ADDRESS, config.MAIL_SERVER_PORT)
         server.starttls()
         server.login(config.MAIL_ADDRESS, config.MAIL_PASSKEY)
         return server
     except:
+        log.error("MAIL_SRV-ERR", "failed to connect with the mail server")
         return None

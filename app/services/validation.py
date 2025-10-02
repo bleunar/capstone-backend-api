@@ -39,23 +39,12 @@ def check_required_fields(data: Dict[str, Any], required_fields: List[str]) -> O
 
 
 def check_order_parameter(order_param: str) -> str:
-    """
-    Validates and sanitizes order parameter to prevent SQL injection.
-    
-    Args:
-        order_param: Order parameter from request
-        
-    Returns:
-        Safe order string (ASC or DESC)
-    """
     if order_param and order_param.lower() == "latest":
         return "DESC"
     return "ASC"
 
 
-
 # standardized responses
-
 def common_success_response(data: Any = None, message: str = "Success") -> Tuple:
     response = {"success": True, "message": message}
     if data is not None:

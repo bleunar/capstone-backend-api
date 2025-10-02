@@ -9,9 +9,9 @@ default_key = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def strippers(data: str) -> list[str]:
     if data:
-        return [url.strip() for url in os.environ.get("WEB_CLIENT_HOSTS").split(',')]
-    
+        return [url.strip() for url in data.split(',')]
     return ["http://localhost:5173"]
+
 class Config:
     BACKEND_ADDRESS = os.environ.get("BACKEND_ADDRESS", "0.0.0.0")
     BACKEND_PORT = os.environ.get("BACKEND_PORT", 5000)
@@ -19,7 +19,6 @@ class Config:
 
     # flask server
     FLASK_SECRET_KEY = os.environ.get("SECRET_NI_FLASK", default_key)
-
     JWT_SECRET_KEY = os.environ.get("SECRET_NI_JWT", default_key)
 
     # mail server credentials
@@ -45,7 +44,7 @@ class Config:
     MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD", "changeme123")
 
     # web client
-    WEB_CLIENT_HOSTS = strippers()
+    WEB_CLIENT_HOSTS = strippers(os.environ.get("WEB_CLIENT_HOSTS"))
 
     access_levels = app.services.access.access_level_lookup()
 

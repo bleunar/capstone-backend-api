@@ -85,6 +85,45 @@ def get(id=None):
     # success
     return common_success_response(accounts_fetch['data'])
 
+@bp_accounts.route("/me", methods=["GET"])
+@jwt_required()
+@require_access("guest")
+def get_current():
+    current_user_claims = get_jwt()
+    current_user_id = get_jwt_identity()
+
+    # setup base query
+    base_query = """
+        select
+            a.id,
+            a.role_id,
+            ar.name as role_name,
+            ar.access_level,
+            a.first_name,
+            a.middle_name,
+            a.last_name,
+            a.email,
+            a.username,
+            a.created_at,
+            a.updated_at
+        from accounts as a
+        inner join account_roles as ar on a.role_id = ar.id
+        where a.id = %s;
+    """
+    
+    # closing statements
+    base_query += ";"
+
+    # execute query
+    accounts_fetch = database.fetch_all(base_query, (current_user_id, ))
+
+    # query fails
+    if not accounts_fetch['success']:
+        return common_database_error_response(accounts_fetch)
+
+    # success
+    return common_success_response(accounts_fetch['data'])
+
 
 @bp_accounts.route("/", methods=["POST"])
 @require_access('admin')

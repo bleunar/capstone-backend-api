@@ -1,10 +1,10 @@
 from flask import Blueprint, jsonify, request
-from app.services.jwt import require_access
-from app.services.security import generate_id
-import app.services.database as database
+from ..services.jwt import require_access
+from ..services.security import generate_id
+from ..services import database
 from flask_jwt_extended import jwt_required
-from app.config import config
-from app.services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_error_response, common_database_error_response
+from ..config import config
+from ..services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_error_response, common_database_error_response
 
 bp_account_roles = Blueprint("account_roles", __name__)
 

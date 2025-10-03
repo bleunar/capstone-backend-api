@@ -9,8 +9,8 @@ def get_service_information():
 
 # system startup check
 def system_check() -> bool:
-    from app.services.core import get_db_connection, get_mail_server
-    from app.services.log import log
+    from .core import get_db_connection, get_mail_server
+    from .log import log
 
     log.inform("SYSTEM-CHECK", f"\n{'/'*25}  System Check  {25*'/'}\n")
     log.inform("SYSTEM-CHECK", "Starting system check...")
@@ -40,7 +40,7 @@ def system_check() -> bool:
     log.inform("DATABASE-CHECK", "Starting database check...")
 
 
-    from app.services.initialize import check_account_roles, check_accounts, initialize_root_role, initialize_root_account
+    from .initialize import check_account_roles, check_accounts, initialize_root_role, initialize_root_account
 
     initialize_root_role()
     initialize_root_account()

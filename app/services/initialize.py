@@ -1,8 +1,8 @@
-from app.services.security import generate_uuid, generate_id
+from .security import generate_uuid, generate_id
 from werkzeug.security import generate_password_hash
-from app.config import config
-import app.services.database as database
-from app.services.log import log
+from ..config import config
+from . import database
+from .log import log
 
 
 def check_account_roles():

@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
-from app.services.jwt import require_access
-import app.services.database as database
+from ..services.jwt import require_access
+from ..services import database
 from flask_jwt_extended import jwt_required
-from app.services.validation import check_order_parameter, common_success_response, common_database_error_response
-from app.config import config
+from ..services.validation import check_order_parameter, common_success_response, common_database_error_response
+from ..config import config
 
 bp_account_logs = Blueprint("account_logs", __name__)
 

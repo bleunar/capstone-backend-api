@@ -1,11 +1,11 @@
 from flask import Blueprint, jsonify, request
-from app.services.jwt import require_access
-import app.services.database as database
-from app.services.security import generate_id, generate_username, generate_default_password
+from ..services.jwt import require_access
+from .. services import database
+from ..services.security import generate_id, generate_username, generate_default_password
 from werkzeug.security import generate_password_hash
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
-from app.config import config
-from app.services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_error_response, common_database_error_response
+from ..config import config
+from ..services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_error_response, common_database_error_response
 
 bp_accounts = Blueprint("accounts", __name__)
 

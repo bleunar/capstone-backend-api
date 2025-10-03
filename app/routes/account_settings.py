@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request
-from app.services.jwt import require_access
-import app.services.database as database
+from ..services.jwt import require_access
+from ..services import database
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.config import config
+from ..config import config
 
 bp_account_settings = Blueprint("account_settings", __name__)
 

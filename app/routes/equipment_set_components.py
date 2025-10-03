@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
-from app.services.jwt import require_access
-from app.services.security import generate_id
-import app.services.database as database
+from ..services.jwt import require_access
+from ..services.security import generate_id
+from ..services import database
 from flask_jwt_extended import jwt_required
-from app.config import config
+from ..config import config
 
 bp_equipment_set_components = Blueprint("equipment_set_components", __name__)
 

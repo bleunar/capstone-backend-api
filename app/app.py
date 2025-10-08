@@ -45,6 +45,19 @@ app.register_blueprint(bp_equipment_set_components, url_prefix="/equipment_set_c
 from .routes.equipment_set_history import bp_equipment_set_history
 app.register_blueprint(bp_equipment_set_history, url_prefix="/equipment_set_history")
 
+# ANALYTICS ENDPOINTS
+from .routes.analytics.accounts import bp_analytics_accounts
+app.register_blueprint(bp_analytics_accounts, url_prefix="/analytics/accounts")
+
+from .routes.analytics.equipment import bp_analytics_equipment
+app.register_blueprint(bp_analytics_equipment, url_prefix="/analytics/equipment")
+
+from .routes.analytics.activity import bp_analytics_activity
+app.register_blueprint(bp_analytics_activity, url_prefix="/analytics/activity")
+
+from .routes.analytics.overview import bp_analytics_overview
+app.register_blueprint(bp_analytics_overview, url_prefix="/analytics/overview")
+
 ph_time = datetime.datetime.now(ZoneInfo("Asia/Manila"))
 
 # status endpoint

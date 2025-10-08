@@ -9,17 +9,25 @@ def get_service_information():
 
 # system startup check
 def system_check() -> bool:
-    from .core import get_db_connection, get_mail_server
+    from .core import get_db_connection, get_mail_server, initialize_database_with_retry
     from .log import log
 
     log.inform("SYSTEM-CHECK", f"\n{'/'*25}  System Check  {25*'/'}\n")
     log.inform("SYSTEM-CHECK", "Starting system check...")
 
     # DATABASE CONNECTION
-    if get_db_connection():
-        log.inform("SYSTEM-CHECK", "Database connection established")
+    log.inform("SYSTEM-CHECK", "Initializing database connection with retry mechanism...")
+    if not initialize_database_with_retry(max_attempts=20, total_duration_minutes=5):
+        log.error("SYSTEM-CHECK", "Failed to establish database connection after all retry attempts")
+        return False
+    
+    # Verify connection works with database operations
+    from .database import test_database_connection
+    db_test_result = test_database_connection()
+    if db_test_result["success"]:
+        log.inform("SYSTEM-CHECK", "Database connection established and verified with test query")
     else:
-        log.error("SYSTEM-CHECK", "Failed to connect to database")
+        log.error("SYSTEM-CHECK", f"Database connection verification failed: {db_test_result.get('msg', 'Unknown error')}")
         return False
 
 

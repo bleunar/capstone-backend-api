@@ -1,5 +1,4 @@
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
-from .core import connection_pool
 from .log import log
 from mysql.connector import Error, MySQLConnection
 from mysql.connector.cursor import MySQLCursor
@@ -47,18 +46,58 @@ def _format_db_message(err: Exception) -> str:
 
 
 
+def _get_connection_pool():
+    """Get the current connection pool from core module."""
+    from .core import connection_pool
+    return connection_pool
+
+
+def is_database_available() -> bool:
+    """Check if database is available and connection pool is working."""
+    try:
+        current_pool = _get_connection_pool()
+        if not current_pool:
+            return False
+        
+        # Test with a simple connection
+        conn = current_pool.get_connection()
+        if conn:
+            conn.close()
+            return True
+        return False
+    except Exception as e:
+        log.error("database-availability", f"Database availability check failed: {str(e)}")
+        return False
+
+
 def _db_executionist(executionLogic, isWrite: bool = False) -> ApiResponse:
-    # check connection pool 
-    if not connection_pool:
-        msg = "Database connection failed"
-        log.error("db-executionist", msg)
-        return {"success": False, "msg": msg, "errno": None, "sqlstate": None}
+    # Get current connection pool dynamically
+    current_pool = _get_connection_pool()
+    
+    # Check if connection pool is available
+    if not current_pool:
+        # Try to initialize connection pool with retry
+        from .core import initialize_database_with_retry
+        log.warn("db-executionist", "Connection pool not available, attempting to initialize with retry...")
+        
+        if not initialize_database_with_retry():
+            msg = "Database connection failed after retry attempts"
+            log.error("db-executionist", msg)
+            return {"success": False, "msg": msg, "errno": None, "sqlstate": None}
+        
+        # Get the newly created pool
+        current_pool = _get_connection_pool()
+        if not current_pool:
+            msg = "Failed to establish database connection pool"
+            log.error("db-executionist", msg)
+            return {"success": False, "msg": msg, "errno": None, "sqlstate": None}
+        else:
+            log.inform("db-executionist", "Connection pool successfully established after retry")
 
     conn: Optional[MySQLConnection] = None
 
-
     try:
-        conn = connection_pool.get_connection()
+        conn = current_pool.get_connection()
 
         # for execute queries
         if isWrite and getattr(conn, "autocommit", None) is True:
@@ -77,6 +116,37 @@ def _db_executionist(executionLogic, isWrite: bool = False) -> ApiResponse:
         return {"success": True, "data": result_data}
 
     except Error as err:
+        # Check if it's a connection-related error and try to recover
+        errno = getattr(err, "errno", None)
+        if errno in [2003, 2006, 2013]:  # Connection errors
+            log.warn("db-executionist", f"Connection error detected (errno: {errno}), attempting recovery...")
+            
+            # Try to recreate connection pool
+            from .core import create_connection_pool
+            if create_connection_pool():
+                log.inform("db-executionist", "Connection pool recreated, retrying operation...")
+                # Retry the operation once with new pool
+                try:
+                    new_pool = _get_connection_pool()
+                    if new_pool:
+                        conn = new_pool.get_connection()
+                        
+                        if isWrite and getattr(conn, "autocommit", None) is True:
+                            conn.autocommit = False
+                        
+                        with conn.cursor(dictionary=True, buffered=True) as cursor:
+                            result_data = executionLogic(cursor)
+                        
+                        if isWrite:
+                            conn.commit()
+                            log.inform("db-executionist", "Transaction committed successfully after retry")
+                        
+                        return {"success": True, "data": result_data}
+                        
+                except Error as retry_err:
+                    log.error("db-executionist", f"Retry failed: {_format_db_error(retry_err)}")
+                    err = retry_err  # Use the retry error for final response
+        
         # rollback if something went wrong
         if isWrite and conn:
             try:
@@ -176,3 +246,18 @@ def fetch_scalar(query: str, params: Optional[Params] = None) -> ApiResponse:
         return {"success": True, "data": scalar_value}
     
     return {"success": True, "data": None}
+
+
+def test_database_connection() -> ApiResponse:
+    """Test database connection with a simple query."""
+    try:
+        result = fetch_one("SELECT 1 as test_value")
+        if result["success"] and result["data"] and result["data"].get("test_value") == 1:
+            log.inform("database-test", "Database connection test successful")
+            return {"success": True, "msg": "Database connection working properly"}
+        else:
+            log.error("database-test", "Database connection test failed - invalid response")
+            return {"success": False, "msg": "Database connection test failed"}
+    except Exception as e:
+        log.error("database-test", f"Database connection test error: {str(e)}")
+        return {"success": False, "msg": f"Database connection test error: {str(e)}"}

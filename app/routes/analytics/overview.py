@@ -18,7 +18,6 @@ bp_analytics_overview = Blueprint("analytics_overview", __name__)
 @jwt_required()
 @require_access("guest")
 def get_dashboard_overview():
-    """Get comprehensive dashboard overview with key metrics."""
     
     # Key metrics queries
     queries = {
@@ -117,7 +116,6 @@ def get_dashboard_overview():
 @jwt_required()
 @require_access("admin")
 def get_system_health():
-    """Get system health indicators and status."""
     
     # Equipment health breakdown
     equipment_health_query = """
@@ -180,7 +178,6 @@ def get_system_health():
 @jwt_required()
 @require_access("admin")
 def get_growth_metrics():
-    """Get growth metrics and trends."""
     
     # Get query parameters
     period = request.args.get('period', 'monthly')  # daily, weekly, monthly
@@ -278,8 +275,6 @@ def get_growth_metrics():
 @jwt_required()
 @require_access("guest")
 def get_location_overview():
-    """Get location-based analytics overview."""
-    
     # Equipment distribution by location
     location_equipment_query = """
         SELECT 
@@ -325,8 +320,6 @@ def get_location_overview():
 @jwt_required()
 @require_access("guest")
 def get_recent_trends():
-    """Get recent trends and changes in the system."""
-    
     # Recent account registrations (last 7 days vs previous 7 days)
     recent_accounts_query = """
         SELECT 

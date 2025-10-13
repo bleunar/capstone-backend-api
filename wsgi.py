@@ -4,3 +4,4 @@ app = jarvis_deploy_website()
 
 if __name__ == "__main__":
     app.run()
+    print("> System Service is UP")

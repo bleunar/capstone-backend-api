@@ -249,7 +249,6 @@ def fetch_scalar(query: str, params: Optional[Params] = None) -> ApiResponse:
 
 
 def test_database_connection() -> ApiResponse:
-    """Test database connection with a simple query."""
     try:
         result = fetch_one("SELECT 1 as test_value")
         if result["success"] and result["data"] and result["data"].get("test_value") == 1:

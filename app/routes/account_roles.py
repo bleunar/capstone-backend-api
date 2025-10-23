@@ -12,7 +12,6 @@ bp_account_roles = Blueprint("account_roles", __name__)
 @jwt_required()
 @require_access("guest")
 def get():
-
     # setup base query
     base_query = """
         select
@@ -84,7 +83,7 @@ def add():
 
     if any(item is None for item in [name, access_level]):
         return jsonify({
-            "msg": "forms data incomplete"
+            "msg": "input incomplete"
         }), 400
 
     # prevent duplicate root roles
@@ -92,7 +91,7 @@ def add():
 
     if root_role_exists['success'] and root_role_exists['data'] and str(access_level) == '0':
         return jsonify({
-            "msg": "only single root role should exist"
+            "msg": 'only one "root" role should exist'
         }), 400
 
     # prevent duplicate name
@@ -145,7 +144,7 @@ def edit(id):
             # Check if existing root role is different from the target role to edit
             if str(existing_root_id) != str(id):
                 return jsonify({
-                    "msg": "A 'root' role with access_level 0 already exists."
+                    "msg": 'Role with "Root" type already exist'
                 }), 400
     
     if not name and not access_level:
@@ -168,21 +167,24 @@ def edit(id):
     account_roles_updated = database.execute_single(base_query, base_params)
 
     if not account_roles_updated['success']:
-        result = jsonify({
-            "msg": account_roles_updated['msg']
-        })
-        return result, 400
+        return common_database_error_response(account_roles_updated)
 
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(
+        message="Account Role Updated"
+    )
 
 
 # hard delete
 @bp_account_roles.route("/<id>", methods=["DELETE"])
 @require_access('root')
 def delete(id):
+
+    target_role_check = database.fetch_scalar('select access_level from account_roles where account_roles.id = %s;', (id, ))
+    
+    if(target_role_check['success'] and target_role_check['data'] == 0):
+        return common_error_response(
+            message='"Root" roles cannot be deleted'
+        )
 
     # prepare query and parameters
     base_query = """
@@ -197,13 +199,11 @@ def delete(id):
 
     # if fail
     if not account_roles_deleted['success']:
-        result = jsonify({
-            "msg": account_roles_deleted['msg']
-        })
-        return result, 400
-
+        return common_error_response(
+            message="Failed to Delete Role"
+        )
+    
     # confirm deletion
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(
+        message="Successfuly Deleted Role"
+    )

@@ -4,6 +4,7 @@ from ..services.security import generate_id
 from ..services import database
 from flask_jwt_extended import jwt_required
 from ..config import config
+from .equipment_set_components import initialize_equipment_set_components
 from ..services.validation import check_json_payload, check_required_fields, common_success_response, common_error_response, common_database_error_response
 
 bp_equipment_sets = Blueprint("equipment_sets", __name__)
@@ -12,26 +13,24 @@ bp_equipment_sets = Blueprint("equipment_sets", __name__)
 @jwt_required()
 @require_access("guest")
 def get():
-
     # setup base query
     base_query = """
         select
             eq_set.id,
             eq_set.location_id,
-            eq_set.location_set_number,
+            eq_set.name,
 
             eq_set.requires_avr,
             eq_set.requires_headset,
-            eq_set.requires_camera,
 
             eq_set.plugged_power_cable,
             eq_set.plugged_display_cable,
 
-            eq_set.internet_connectivity,
-            eq_set.functionability,
+            eq_set.connectivity,
+            eq_set.performance,
             
             eq_set.status,
-            eq_set.issue_description,
+            eq_set.issue,
 
             eq_set.created_at,
             eq_set.updated_at
@@ -60,7 +59,7 @@ def get():
         base_query += " WHERE " + " AND ".join(conditional_query)
     
     # sort the order by ascending
-    base_query += f" ORDER BY eq_set.location_set_number ASC"
+    base_query += f"ORDER BY CAST(REGEXP_REPLACE(name, '[^0-9]', '') AS UNSIGNED);"
     
 
     # closing statements
@@ -77,108 +76,158 @@ def get():
     return common_success_response(equipment_set_fetch['data'])
 
 
-@bp_equipment_sets.route("/", methods=["POST"])
+@bp_equipment_sets.route("/single", methods=["POST"])
 @require_access('admin')
-def add():
+def add_single():
     # Validate JSON payload
     data, error_response = check_json_payload()
     if error_response:
         return error_response
 
     # Validate required fields
-    required_fields = ['location_id', 'location_set_number']
+    required_fields = ['location_id', 'name']
     validation_error = check_required_fields(data, required_fields)
     if validation_error:
         return validation_error
 
     # setup and fetch data
     location_id = data['location_id']
-    location_set_number = data['location_set_number']
+    name = data['name']
 
-    requires_avr = data.get('requires_avr', 'true')
-    requires_headset = data.get('requires_headset', 'true')
-    requires_camera = data.get('requires_camera', 'true')
-
-    plugged_power_cable = data.get('plugged_power_cable', 'true')
-    plugged_display_cable = data.get('plugged_display_cable', 'true')
-
-    internet_connectivity = data.get('internet_connectivity', 'stable')
-    functionability = data.get('functionability', 'stable')
-
-    status = data.get('status', 'active')
-    
+    requires_avr = "true" if data.get('requires_avr') else "false"
+    requires_headset = "true" if data.get('requires_headset') else "false"
+    id = generate_id()
 
     base_query = """
         insert into equipment_sets
             (
                 equipment_sets.id,
                 equipment_sets.location_id,
-                equipment_sets.location_set_number,
+                equipment_sets.name,
                 equipment_sets.requires_avr,
-                equipment_sets.requires_headset,
-                equipment_sets.requires_camera,
-                equipment_sets.plugged_power_cable,
-                equipment_sets.plugged_display_cable,
-                equipment_sets.internet_connectivity,
-                equipment_sets.functionability,
-                equipment_sets.status
+                equipment_sets.requires_headset
             )
         values
-            (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            (%s, %s, %s, %s, %s);
     """
     base_params = (
-        generate_id(),
+        id,
         location_id,
-        location_set_number,
+        name,
         requires_avr,
-        requires_headset,
-        requires_camera,
-        plugged_power_cable,
-        plugged_display_cable,
-        internet_connectivity,
-        functionability,
-        status
+        requires_headset
     )
 
     equipment_set_added = database.execute_single(base_query, base_params)
 
+    initialize_equipment_set_components(id, data)
+
     if not equipment_set_added['success']:
-        result = jsonify({
-            "msg": equipment_set_added['msg']
-        })
-        return result, 400
+        return common_database_error_response(equipment_set_added)
 
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(
+        data=True,
+        message="Successfuly Added a New Equipment"
+    )
 
+
+@bp_equipment_sets.route("/batch", methods=["POST"])
+@require_access('admin')
+def add_batch():
+    # Validate JSON payload
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
+
+    # Validate required fields
+    required_fields = ['location_id', 'prefix', 'count']
+    validation_error = check_required_fields(data, required_fields)
+    if validation_error:
+        return validation_error
+
+    # Setup and fetch data
+    location_id = data['location_id']
+    prefix = data['prefix']
+    count = int(data['count'])
+
+    requires_avr = "true" if data.get('requires_avr') else "false"
+    requires_headset = "true" if data.get('requires_headset') else "false"
+
+    # SQL query template
+    base_query = """
+        INSERT INTO equipment_sets
+            (id, location_id, name, requires_avr, requires_headset)
+        VALUES
+            (%s, %s, %s, %s, %s);
+    """
+
+    added_sets = []
+    failed_sets = []
+
+    # Loop to add multiple equipment sets
+    for i in range(1, count + 1):
+        name = f"{prefix}{i}"
+        set_id = generate_id()
+
+        params = (
+            set_id,
+            location_id,
+            name,
+            requires_avr,
+            requires_headset
+        )
+
+        result = database.execute_single(base_query, params)
+
+        if result['success']:
+            initialize_equipment_set_components(set_id, data)
+            added_sets.append(name)
+        else:
+            failed_sets.append({
+                "name": name,
+                "error": result.get("error", "Unknown error")
+            })
+
+    # Generate response summary
+    if failed_sets:
+        return common_error_response(
+            message=f"Added {len(added_sets)} equipment sets successfully, "
+                    f"but {len(failed_sets)} failed.",
+            data={"added": added_sets, "failed": failed_sets}
+        )
+
+    return common_success_response(
+        data={"added": added_sets},
+        message=f"Successfully added {len(added_sets)} equipment sets."
+    )
 
 
 @bp_equipment_sets.route("/<id>", methods=["PUT"])
 @require_access('admin')
 def edit(id):
-    data = request.get_json()
+    # Validate JSON payload
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
 
     # fetch data forms
-    location_id = data.get('location_id')
-    location_set_number = data.get('location_set_number')
+    location_id = data['location_id']
+    name = data['name']
 
-    requires_avr = data.get('requires_avr', 'false')
-    requires_headset = data.get('requires_headset', 'false')
-    requires_camera = data.get('requires_camera', 'false')
+    requires_avr = "true" if data.get('requires_avr') else "false"
+    requires_headset = "true" if data.get('requires_headset') else "false"
 
-    plugged_power_cable = data.get('plugged_power_cable', 'true')
-    plugged_display_cable = data.get('plugged_display_cable', 'true')
+    plugged_power_cable =  "true" if data.get('plugged_power_cable') else "false"
+    plugged_display_cable =  "true" if data.get('plugged_display_cable') else "false"
 
-    internet_connectivity = data.get('internet_connectivity', 'stable')
-    functionability = data.get('functionability', 'stable')
+    connectivity = data.get('connectivity', 'untested')
+    performance = data.get('performance', 'untested')
 
     status = data.get('status', 'active')
-    issue_description = data.get('issue_description', '')
+    issue = data.get('issue', '')
     
 
-    if any(item is None for item in [location_id, location_set_number, requires_avr, requires_camera, requires_headset, plugged_display_cable, plugged_power_cable, internet_connectivity, functionability, status]):
+    if any(item is None for item in [location_id, name, requires_avr, requires_headset, plugged_display_cable, plugged_power_cable, connectivity, performance, status]):
         return jsonify({
             "msg": "forms data incomplete"
         }), 400
@@ -186,18 +235,16 @@ def edit(id):
     # prepare query and parameters
     base_query = """
         update equipment_sets set
-            equipment_sets.id = %s,
             equipment_sets.location_id = %s,
-            equipment_sets.location_set_number = %s,
+            equipment_sets.name = %s,
             equipment_sets.requires_avr = %s,
             equipment_sets.requires_headset = %s,
-            equipment_sets.requires_camera = %s,
             equipment_sets.plugged_power_cable = %s,
             equipment_sets.plugged_display_cable = %s,
-            equipment_sets.internet_connectivity = %s,
-            equipment_sets.functionability = %s,
+            equipment_sets.connectivity = %s,
+            equipment_sets.performance = %s,
             equipment_sets.status = %s,
-            equipment_sets.issue_description = %s
+            equipment_sets.issue = %s
         
         where
             equipment_sets.id = %s
@@ -205,31 +252,27 @@ def edit(id):
 
     base_params = (
         location_id,
-        location_set_number,
+        name,
         requires_avr,
         requires_headset,
-        requires_camera,
         plugged_power_cable,
         plugged_display_cable,
-        internet_connectivity,
-        functionability,
+        connectivity,
+        performance,
         status,
-        issue_description,
+        issue,
         id    
     )
 
     equipment_set_updated = database.execute_single(base_query, base_params)
 
     if not equipment_set_updated['success']:
-        result = jsonify({
-            "msg": equipment_set_updated['msg']
-        })
-        return result, 400
+        return common_database_error_response(equipment_set_updated)
 
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(
+        data=True,
+        message="Updated Equipment Set"
+    )
 
 
 # hard delete

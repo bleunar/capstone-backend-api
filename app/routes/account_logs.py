@@ -13,17 +13,16 @@ bp_account_logs = Blueprint("account_logs", __name__)
 def get():
     # setup base query
     base_query = """
-        select
+        SELECT
             al.id,
             al.account_id,
             al.action,
             al.created_at,
-            a.username as account_username,
-            a.first_name as account_first_name,
-            a.middle_name as account_middle_name,
-            a.last_name as account_last_name
-        from account_logs as al
-        inner join accounts as a on al.account_id = a.id
+            a.username AS account_username,
+            CONCAT_WS(' ', a.first_name, a.middle_name, a.last_name) AS account_full_name
+        FROM account_logs AS al
+        INNER JOIN accounts AS a
+            ON al.account_id = a.id;
     """
 
     # CONDITIONALS

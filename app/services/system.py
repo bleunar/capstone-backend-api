@@ -58,3 +58,7 @@ def system_check() -> bool:
 
     log.inform("DATABASE-CHECK", "database checks completed")
     log.inform("DATABASE-CHECK", f"\n{'\\'*25}  Database Initialization End  {25*'\\'}\n")
+
+
+def convert_date():
+    pass

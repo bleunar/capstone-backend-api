@@ -6,7 +6,6 @@ from flask_cors import CORS
 from .services.system import get_service_information
 from .services.core import get_flask_app
 from .services.system import system_check
-from prometheus_flask_exporter import PrometheusMetrics
 
 app = get_flask_app()
 app.config["SECRET_KEY"] = config.FLASK_SECRET_KEY
@@ -19,11 +18,11 @@ app.config["JWT_COOKIE_CSRF_PROTECT"] = True
 app.url_map.strict_slashes = False
 
 # ENDPOINTS FROM BLUEPRINTS
+from .routes.system import bp_system
+app.register_blueprint(bp_system, url_prefix="/")
+
 from .routes.access_levels import access_levels_bp
 app.register_blueprint(access_levels_bp, url_prefix="/access_levels")
-
-from .routes.account_settings import bp_account_settings
-app.register_blueprint(bp_account_settings, url_prefix="/account_settings")
 
 from .routes.account_roles import bp_account_roles
 app.register_blueprint(bp_account_roles, url_prefix="/account_roles")
@@ -43,8 +42,8 @@ app.register_blueprint(bp_equipment_sets, url_prefix="/equipment_sets")
 from .routes.equipment_set_components import bp_equipment_set_components
 app.register_blueprint(bp_equipment_set_components, url_prefix="/equipment_set_components")
 
-from .routes.equipment_set_history import bp_equipment_set_history
-app.register_blueprint(bp_equipment_set_history, url_prefix="/equipment_set_history")
+from .routes.equipment_set_activity import bp_equipment_set_activity
+app.register_blueprint(bp_equipment_set_activity, url_prefix="/equipment_set_activity")
 
 # ANALYTICS ENDPOINTS
 from .routes.analytics.accounts import bp_analytics_accounts
@@ -73,8 +72,6 @@ def status():
 
 # setup CORS for all endpoint
 CORS(app, origins=config.WEB_CLIENT_HOSTS, supports_credentials=True)
-
-metrics = PrometheusMetrics(app)
 
 # main method
 def jarvis_deploy_website():

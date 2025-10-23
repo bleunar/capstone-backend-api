@@ -19,7 +19,6 @@ def get():
             loc.id,
             loc.name,
             loc.description,
-            loc.equipment_layout,
             loc.created_at,
             loc.updated_at
         from locations as loc
@@ -44,12 +43,8 @@ def get():
     # build conditional query
     if conditional_query:
         base_query += " WHERE " + " AND ".join(conditional_query)
-        
 
-    # ORDERING OF RECORDS BY RECENTLY CREATED
-    if 'order' in request.args:
-        order = check_order_parameter(request.args.get('order'))
-        base_query += f" ORDER BY loc.created_at {order}"
+    base_query += f" ORDER BY loc.name ASC"
     
     # closing statements
     base_query += ";"
@@ -60,6 +55,8 @@ def get():
     # query fails
     if not locations_fetch['success']:
         return common_database_error_response(locations_fetch)
+    
+    print(locations_fetch['data'])
 
     # success
     return common_success_response(locations_fetch['data'])
@@ -74,7 +71,7 @@ def add():
         return error_response
 
     # Validate required fields
-    required_fields = ['name', 'description', 'equipment_layout']
+    required_fields = ['name', 'description']
     validation_error = check_required_fields(data, required_fields)
     if validation_error:
         return validation_error
@@ -82,24 +79,21 @@ def add():
     # setup and fetch data
     name = data['name']
     description = data['description']
-    equipment_layout = data['equipment_layout']
 
     base_query = """
         insert into locations
             (
                 locations.id,
                 locations.name,
-                locations.description,
-                locations.equipment_layout
+                locations.description
             )
         values
-            (%s, %s, %s, %s);
+            (%s, %s, %s);
     """
     base_params = (
         generate_id(),
         name,
-        description,
-        equipment_layout
+        description
     )
 
     location_added = database.execute_single(base_query, base_params)
@@ -125,9 +119,8 @@ def edit(id):
     # fetch data forms
     name = data['name']
     description = data['description']
-    equipment_layout = data['equipment_layout']
     
-    if any(item is None for item in [name, description, equipment_layout]):
+    if any(item is None for item in [name, description]):
         return jsonify({
             "msg": "data incomplete"
         }), 400
@@ -136,14 +129,12 @@ def edit(id):
     base_query = """
         update locations set
             locations.name = %s,
-            locations.description = %s,
-            locations.equipment_layout = %s
-        
+            locations.description = %s
         where
             locations.id = %s
     """
 
-    base_params = (name, description, equipment_layout, id)
+    base_params = (name, description, id)
 
     location_updated = database.execute_single(base_query, base_params)
 

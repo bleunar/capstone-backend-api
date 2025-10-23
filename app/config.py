@@ -16,7 +16,8 @@ class Config:
     BACKEND_ADDRESS = os.environ.get("BACKEND_ADDRESS", "0.0.0.0")
     BACKEND_PORT = os.environ.get("BACKEND_PORT", 5000)
     FLASK_ENVIRONMENT = os.environ.get("FLASK_ENVIRONMENT", 'development')
-
+    ENABLE_PROMETRICS = os.getenv("ENABLE_PROMETRICS", "false").lower() in ("1", "true", "yes", "on")
+    
     # flask server
     FLASK_SECRET_KEY = os.environ.get("SECRET_NI_FLASK", default_key)
     JWT_SECRET_KEY = os.environ.get("SECRET_NI_JWT", default_key)

@@ -27,6 +27,8 @@ def get(id=None):
             a.first_name,
             a.middle_name,
             a.last_name,
+            a.gender,
+            DATE_FORMAT(a.birth_date, '%Y-%m-%d') AS birth_date,
             a.email,
             a.username,
             a.created_at,
@@ -42,9 +44,6 @@ def get(id=None):
 
     # filter by id
     if 'id' in request.args and request.args.get("id"):
-        conditional_query.append("a.id = %s")
-        conditional_params.append(get_jwt_identity())
-    elif id:
         conditional_query.append("a.id = %s")
         conditional_params.append(request.args.get('id'))
 
@@ -105,13 +104,13 @@ def add():
     first_name = data['first_name']
     middle_name = data.get('middle_name', '')
     last_name = data['last_name']
+    gender = data['gender']
+    birth_date = data['birth_date']
     email = data['email']
     username = data.get('username', '')
     password = data.get('password', '')
     status = data.get('status', 'active')
 
-    # assign username from data if username is set. else, generate a new username via the user's first, middle, and last name
-    account_username = username if username else generate_username(first_name, middle_name, last_name)
 
     # assign password from data if password is set, else, generate a new password using user's names, organization, and a unique string
     account_password = password if password else generate_default_password(first_name, middle_name, last_name)
@@ -125,13 +124,15 @@ def add():
                 accounts.first_name,
                 accounts.middle_name,
                 accounts.last_name,
+                accounts.gender,
+                accounts.birth_date,
                 accounts.email,
                 accounts.username,
                 accounts.password_hash,
                 accounts.status
             )
         values
-            (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+            (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     """
     base_params = (
         generate_id(),
@@ -139,8 +140,10 @@ def add():
         first_name,
         middle_name if middle_name else None,
         last_name,
-        email if email else None,
-        account_username,
+        gender,
+        birth_date,
+        email,
+        username,
         account_password_hashed,
         status
     )
@@ -150,10 +153,13 @@ def add():
     if not accounts_added['success']:
         return common_database_error_response(accounts_added)
 
-    return common_success_response({
-        "username": account_username,
-        "password": account_password
-    }, "Account created successfully")
+    return common_success_response(
+        message="Account created successfully",
+        data={
+            "username": username,
+            "password": account_password
+        }
+    )
 
 
 
@@ -185,20 +191,14 @@ def edit(id=None):
     first_name = data['first_name']
     middle_name = data.get('middle_name', '')
     last_name = data['last_name']
+    gender = data['gender']
+    birth_date = data['birth_date']
     email = data['email']
     username = data.get('username', '')
-    password = data.get('password', '')
     status = data.get('status', 'active')
-    
-    # assign username from data if username is set. else, generate a new username via the user's first, middle, and last name
-    account_username = username if username else generate_username(first_name, middle_name, last_name)
 
-    # assign password from data if password is set, else, generate a new password using user's names, organization, and a unique string
-    
-    account_password_hashed = account_database_check['data']
+    print(data['birth_date'])
 
-    if password:
-        account_password_hashed = generate_password_hash(password)
 
     # prepae query and paameters
     base_query = """
@@ -207,9 +207,10 @@ def edit(id=None):
             accounts.first_name = %s,
             accounts.middle_name = %s,
             accounts.last_name = %s,
+            accounts.gender = %s,
+            accounts.birth_date = %s,
             accounts.email = %s,
             accounts.username = %s,
-            accounts.password_hash = %s,
             accounts.status = %s
         where
             accounts.id = %s;
@@ -220,9 +221,10 @@ def edit(id=None):
         first_name,
         middle_name if middle_name else None,
         last_name,
-        email if email else None,
-        account_username,
-        account_password_hashed,
+        gender,
+        birth_date,
+        email,
+        username,
         status,
         id
     )
@@ -230,16 +232,11 @@ def edit(id=None):
     accounts_updated = database.execute_single(base_query, base_params)
 
     if not accounts_updated['success']:
-        result = jsonify({
-            "msg": accounts_updated['msg']
-        })
-        return result, 400
+        return common_database_error_response(accounts_updated)
 
-    result = jsonify({
-        "username": account_username,
-        "password": password
-    })
-    return result, 200
+    return common_success_response(
+        message="Account Updated"
+    )
 
 
 # handle delete
@@ -251,7 +248,7 @@ def delete(id):
 
     if id == current_user_id:
         return jsonify({
-            "msg": "cannot delete your account"
+            "msg": "You cannot delete your own account"
         }), 400
 
     # prepare query and paameters

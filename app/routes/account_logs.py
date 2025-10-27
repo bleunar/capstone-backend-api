@@ -71,3 +71,37 @@ def get():
     # success
     return common_success_response(account_logs_fetch['data'])
 
+
+
+@bp_account_logs.route("/recent", methods=["GET"])
+def get_recent_account_logs():
+    # setup base query
+    base_query = """
+    SELECT
+        a.username,
+        al.action
+    FROM account_logs AS al
+    JOIN accounts AS a
+        ON al.account_id = a.id
+    ORDER BY al.created_at DESC
+    LIMIT 8;
+    """
+
+    # execute query
+    account_logs_fetch_recent = database.fetch_all(base_query)
+
+    # query fails
+    if not account_logs_fetch_recent["success"]:
+        return common_database_error_response(account_logs_fetch_recent)
+
+    # fetch rows
+    data = account_logs_fetch_recent["data"]
+
+    # generate column names dynamically from first record
+    columns = list(data[0].keys()) if data else []
+
+    # success response
+    return common_success_response({
+        "columns": columns,
+        "data": data
+    })

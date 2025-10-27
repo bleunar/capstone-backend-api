@@ -225,10 +225,20 @@ def add_batch():
     added_sets = []
     failed_sets = []
 
+    query_fetch_latest_num = """
+        SELECT COUNT(*) AS total_count
+        FROM equipment_sets
+        WHERE equipment_sets.location_id = %s;
+    """
+
+    highest = database.fetch_scalar(query_fetch_latest_num, (location_id, ))['data']
+
     # Loop to add multiple equipment sets
-    for i in range(1, count + 1):
+    for i in range(highest+1, highest + count + 1):
         name = f"{prefix}{i}"
         set_id = generate_id()
+
+        print(name)
 
         params = (
             set_id,
@@ -401,3 +411,176 @@ def fetch_equipment_sets(id: str):
 
     # success
     return True, equipment_set_fetch['data']
+
+
+# ANALYTICSSSSS ==================================================================
+
+@bp_equipment_sets.route("/analytics/total", methods=["GET"])
+def analytics_total():
+    query = """
+        SELECT COUNT(id) AS data
+        FROM equipment_sets;
+    """
+
+    # execute query
+    equipment_sets_analytics_fetch_total = database.fetch_scalar(query)
+
+    # query fails
+    if not equipment_sets_analytics_fetch_total['success']:
+        return common_database_error_response(equipment_sets_analytics_fetch_total)
+    
+    print(equipment_sets_analytics_fetch_total)
+
+    # success
+    return common_success_response(data=equipment_sets_analytics_fetch_total['data'])
+
+@bp_equipment_sets.route("/analytics/total/location/<location_id>", methods=["GET"])
+def analytics_total_per_location(location_id):
+    query = """
+        SELECT COUNT(id) AS data
+        FROM equipment_sets
+        WHERE location_id = %s;
+    """
+
+    # execute query
+    equipment_sets_analytics_fetch_total_per_location = database.fetch_scalar(query, (location_id, ))
+
+    # query fails
+    if not equipment_sets_analytics_fetch_total_per_location['success']:
+        return common_database_error_response(equipment_sets_analytics_fetch_total_per_location)
+    
+    # success
+    return common_success_response(equipment_sets_analytics_fetch_total_per_location['data'])
+
+
+@bp_equipment_sets.route("/analytics/ratio", methods=["GET"])
+def analytics_ratio_issues():
+    query = """
+        SELECT
+            (SELECT COUNT(id) FROM equipment_sets) AS total,
+
+            (
+                SELECT COUNT(DISTINCT es.id)
+                FROM equipment_sets AS es
+                LEFT JOIN equipment_set_components AS esc 
+                    ON es.id = esc.equipment_set_id
+                WHERE 
+                    -- Missing component name or serial
+                    (
+                        esc.system_unit_name IS NULL OR esc.system_unit_name = '' OR
+                        esc.system_unit_serial_number IS NULL OR esc.system_unit_serial_number = '' OR
+                        esc.monitor_name IS NULL OR esc.monitor_name = '' OR
+                        esc.monitor_serial_number IS NULL OR esc.monitor_serial_number = '' OR
+                        esc.keyboard_name IS NULL OR esc.keyboard_name = '' OR
+                        esc.keyboard_serial_number IS NULL OR esc.keyboard_serial_number = '' OR
+                        esc.mouse_name IS NULL OR esc.mouse_name = '' OR
+                        esc.mouse_serial_number IS NULL OR esc.mouse_serial_number = '' OR
+                        esc.avr_name IS NULL OR esc.avr_name = '' OR
+                        esc.avr_serial_number IS NULL OR esc.avr_serial_number = '' OR
+                        esc.headset_name IS NULL OR esc.headset_name = '' OR
+                        esc.headset_serial_number IS NULL OR esc.headset_serial_number = ''
+                    )
+                    OR es.plugged_power_cable = FALSE
+                    OR es.plugged_display_cable = FALSE
+                    OR es.performance = 'unstable'
+                    OR es.connectivity = 'unstable'
+                    OR (es.issue IS NOT NULL AND es.issue <> '')
+            ) AS issues;
+    """
+
+    # execute query
+    equipment_sets_analytics_fetch_ratio_issues = database.fetch_one(query)
+
+    # query fails
+    if not equipment_sets_analytics_fetch_ratio_issues['success']:
+        return common_database_error_response(equipment_sets_analytics_fetch_ratio_issues)
+    
+    # success
+    return common_success_response(equipment_sets_analytics_fetch_ratio_issues['data'])
+
+
+@bp_equipment_sets.route("/analytics/issues/total", methods=["GET"])
+def analytics_issues_total():
+    query = """
+        SELECT COUNT(DISTINCT es.id) AS equipment_sets_with_issues
+        FROM equipment_sets AS es
+        LEFT JOIN equipment_set_components AS esc
+            ON es.id = esc.equipment_set_id
+        WHERE 
+            -- Basic equipment set issue conditions
+            es.plugged_power_cable = 'false'
+            OR es.plugged_display_cable = 'false'
+            OR es.connectivity = 'unstable'
+            OR es.performance = 'unstable'
+            OR es.status = 'maintenance'
+            OR es.issue IS NOT NULL
+            -- Component-based issues
+            OR (
+                (esc.system_unit_name IS NULL OR esc.system_unit_name = '' 
+                OR esc.system_unit_serial_number IS NULL OR esc.system_unit_serial_number = '')
+                OR (esc.monitor_name IS NULL OR esc.monitor_name = '' 
+                OR esc.monitor_serial_number IS NULL OR esc.monitor_serial_number = '')
+                OR (esc.keyboard_name IS NULL OR esc.keyboard_name = '' 
+                OR esc.keyboard_serial_number IS NULL OR esc.keyboard_serial_number = '')
+                OR (esc.mouse_name IS NULL OR esc.mouse_name = '' 
+                OR esc.mouse_serial_number IS NULL OR esc.mouse_serial_number = '')
+                OR (es.requires_avr = TRUE AND (esc.avr_name IS NULL OR esc.avr_name = '' 
+                OR esc.avr_serial_number IS NULL OR esc.avr_serial_number = ''))
+                OR (es.requires_headset = TRUE AND (esc.headset_name IS NULL OR esc.headset_name = '' 
+                OR esc.headset_serial_number IS NULL OR esc.headset_serial_number = ''))
+            );
+    """
+
+    # execute query
+    equipment_sets_analytics_fetch_issues_total = database.fetch_scalar(query)
+
+    # query fails
+    if not equipment_sets_analytics_fetch_issues_total['success']:
+        return common_database_error_response(equipment_sets_analytics_fetch_issues_total)
+    
+    # success
+    return common_success_response(equipment_sets_analytics_fetch_issues_total['data'])
+
+
+
+@bp_equipment_sets.route("/analytics/issues/total/location/<id>", methods=["GET"])
+def analytics_issues_total_location(id):
+    query = """
+        SELECT COUNT(DISTINCT es.id) AS equipment_sets_with_issues
+        FROM equipment_sets AS es
+        LEFT JOIN equipment_set_components AS esc
+            ON es.id = esc.equipment_set_id
+        WHERE 
+            es.location_id = %s
+            AND (
+                es.plugged_power_cable = FALSE
+                OR es.plugged_display_cable = FALSE
+                OR es.connectivity = 'unstable'
+                OR es.performance = 'unstable'
+                OR es.status = 'maintenance'
+                OR es.issue IS NOT NULL
+                OR (
+                    esc.system_unit_name IS NULL OR esc.system_unit_name = '' 
+                    OR esc.system_unit_serial_number IS NULL OR esc.system_unit_serial_number = ''
+                    OR esc.monitor_name IS NULL OR esc.monitor_name = '' 
+                    OR esc.monitor_serial_number IS NULL OR esc.monitor_serial_number = ''
+                    OR esc.keyboard_name IS NULL OR esc.keyboard_name = '' 
+                    OR esc.keyboard_serial_number IS NULL OR esc.keyboard_serial_number = ''
+                    OR esc.mouse_name IS NULL OR esc.mouse_name = '' 
+                    OR esc.mouse_serial_number IS NULL OR esc.mouse_serial_number = ''
+                    OR (es.requires_avr = TRUE AND (esc.avr_name IS NULL OR esc.avr_name = '' OR esc.avr_serial_number IS NULL OR esc.avr_serial_number = ''))
+                    OR (es.requires_headset = TRUE AND (esc.headset_name IS NULL OR esc.headset_name = '' OR esc.headset_serial_number IS NULL OR esc.headset_serial_number = ''))
+                )
+            );
+
+    """
+
+    # execute query
+    equipment_sets_analytics_fetch_issues_total_location = database.fetch_scalar(query, (id, ))
+
+    # query fails
+    if not equipment_sets_analytics_fetch_issues_total_location['success']:
+        return common_database_error_response(equipment_sets_analytics_fetch_issues_total_location)
+    
+    # success
+    return common_success_response(equipment_sets_analytics_fetch_issues_total_location['data'])

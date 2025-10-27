@@ -4,7 +4,7 @@ from ..services.security import generate_id
 from ..services import database
 from flask_jwt_extended import jwt_required
 from ..config import config
-from ..services.validation import check_json_payload, check_required_fields, check_order_parameter, common_success_response, common_database_error_response
+from ..services.validation import check_json_payload, check_required_fields, common_error_response, common_success_response, common_database_error_response
 
 bp_locations = Blueprint("locations", __name__)
 
@@ -12,7 +12,6 @@ bp_locations = Blueprint("locations", __name__)
 @jwt_required()
 @require_access("guest")
 def get():
-
     # setup base query
     base_query = """
         select
@@ -78,6 +77,11 @@ def add():
     name = data['name']
     description = data['description']
 
+    if not location_name_unique(name):
+        return common_error_response(
+            message="Location name already exist"
+        )
+    
     base_query = """
         insert into locations
             (
@@ -97,31 +101,33 @@ def add():
     location_added = database.execute_single(base_query, base_params)
 
     if not location_added['success']:
-        result = jsonify({
-            "msg": location_added['msg']
-        })
-        return result, 400
+        return common_database_error_response(location_added)
 
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(data=True)
+
 
 
 
 @bp_locations.route("/<id>", methods=["PUT"])
 @require_access('admin')
 def edit(id):
-    data = request.get_json()
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
 
     # fetch data forms
     name = data['name']
     description = data['description']
+
+    if not location_name_unique(name):
+        return common_error_response(
+            message="Location name already exist"
+        )
     
     if any(item is None for item in [name, description]):
-        return jsonify({
-            "msg": "data incomplete"
-        }), 400
+        return common_error_response(
+            message="Form Data Incomplete"
+        )
 
     # prepare query and parameters
     base_query = """
@@ -137,15 +143,9 @@ def edit(id):
     location_updated = database.execute_single(base_query, base_params)
 
     if not location_updated['success']:
-        result = jsonify({
-            "msg": location_updated['msg']
-        })
-        return result, 400
+        common_database_error_response(location_updated)
 
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(data=True)
 
 
 # hard delete
@@ -166,13 +166,45 @@ def delete(id):
 
     # if fail
     if not location_deleted['success']:
-        result = jsonify({
-            "msg": location_deleted['msg']
-        })
-        return result, 400
+        common_database_error_response(location_deleted)
 
     # confirm deletion
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(data=True)
+
+
+# ANALYTICSSSSS ==================================================================
+
+@bp_locations.route("/analytics/total", methods=["GET"])
+def analytics_total():
+    query = """
+        SELECT COUNT(id) AS data
+        FROM locations;
+    """
+
+    # execute query
+    locations_analytics_fetch_total = database.fetch_scalar(query)
+
+    # query fails
+    if not locations_analytics_fetch_total['success']:
+        return common_database_error_response(locations_analytics_fetch_total)
+    
+    # success
+    return common_success_response(locations_analytics_fetch_total['data'])
+
+
+def location_name_unique(name: str):
+    base_query = """
+        select
+            loc.id
+        from locations as loc
+        where loc.name = %s;
+    """
+
+    locations_fetch = database.fetch_all(base_query, (name, ))
+
+    print(name)
+
+    if not locations_fetch['success']:
+        return None
+    
+    return len(locations_fetch['data']) == 0

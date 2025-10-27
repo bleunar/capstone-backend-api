@@ -152,12 +152,12 @@ def edit(id):
 def initialize_equipment_set_components(equipment_set_id:str, data: dict = {}):
 
     # setup and fetch data
-    sysunit_name = data.get('system_unit_name', '')
-    mntr_name = data.get('monitor_name', '')
-    kbrd_name = data.get('keyboard_name', '')
-    mouse_name = data.get('mouse_name', '')
-    avr_name = data.get('avr_name', '')
-    hset_name = data.get('headset_name', '')
+    sysunit_name = data.get('system_unit_name', 'System Unit')
+    mntr_name = data.get('monitor_name', 'Monitor')
+    kbrd_name = data.get('keyboard_name', 'Keyboard')
+    mouse_name = data.get('mouse_name', 'Mouse')
+    avr_name = data.get('avr_name', 'AVR Unit')
+    hset_name = data.get('headset_name', 'Headset')
 
     base_query = """
         insert into equipment_set_components
@@ -168,10 +168,16 @@ def initialize_equipment_set_components(equipment_set_id:str, data: dict = {}):
                 equipment_set_components.keyboard_name,
                 equipment_set_components.mouse_name,
                 equipment_set_components.avr_name,
-                equipment_set_components.headset_name
+                equipment_set_components.headset_name,
+                equipment_set_components.system_unit_serial_number,
+                equipment_set_components.monitor_serial_number,
+                equipment_set_components.keyboard_serial_number,
+                equipment_set_components.mouse_serial_number,
+                equipment_set_components.avr_serial_number,
+                equipment_set_components.headset_serial_number
             )
         values
-            (%s, %s, %s, %s, %s, %s, %s);
+            (%s, %s, %s, %s, %s, %s, %s, 'changeme', 'changeme', 'changeme', 'changeme', 'changeme', 'changeme');
     """
 
     base_params = (

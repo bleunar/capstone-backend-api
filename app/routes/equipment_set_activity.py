@@ -182,6 +182,46 @@ def get_today_logged_activities(location_id):
     return common_success_response(result["data"])
 
 
+@bp_equipment_set_activity.route("/recent", methods=["GET"])
+def get_recent_equipment_activity():
+    # setup base query
+    base_query = """
+    SELECT
+        es.name AS equipment_set_name,
+        a.username AS performed_by,
+        esa.action,
+        esa.value
+    FROM equipment_set_activity AS esa
+    JOIN accounts AS a
+        ON esa.performed_by_account_id = a.id
+    JOIN equipment_sets AS es
+        ON esa.equipment_set_id = es.id
+    ORDER BY esa.created_at DESC
+    LIMIT 8;
+    """
+
+    # execute query
+    equipment_set_activity_fetch_recent = database.fetch_all(base_query)
+
+    # query fails
+    if not equipment_set_activity_fetch_recent["success"]:
+        return common_database_error_response(equipment_set_activity_fetch_recent)
+
+    # fetch rows
+    data = equipment_set_activity_fetch_recent["data"]
+
+    # generate column names dynamically from first record
+    columns = list(data[0].keys()) if data else []
+
+    # success response
+    return common_success_response({
+        "columns": columns,
+        "data": data
+    })
+
+
+
+
 # ================================================== Helper Functions
 
 def log_equipment_set_changes(account_id: str, equipment_set_id: str, old: dict, new: dict):

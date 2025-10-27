@@ -277,3 +277,61 @@ def delete(id):
         "data": True
     })
     return result, 200
+
+
+# ANALYTICSSSSS ==================================================================
+
+@bp_accounts.route("/analytics/total", methods=["GET"])
+def analytics_total():
+    query = """
+        SELECT COUNT(id) AS data
+        FROM accounts;
+    """
+
+    # execute query
+    accounts_analytics_fetch_total = database.fetch_scalar(query)
+
+    # query fails
+    if not accounts_analytics_fetch_total['success']:
+        return common_database_error_response(accounts_analytics_fetch_total)
+    
+    # success
+    return common_success_response(accounts_analytics_fetch_total['data'])
+
+@bp_accounts.route("/analytics/total_active", methods=["GET"])
+def analytics_total_active():
+    query = """
+        SELECT COUNT(DISTINCT account_id) AS total
+        FROM account_logs
+        WHERE action = 'login'
+          AND created_at >= NOW() - INTERVAL 1 HOUR;
+    """
+
+    # execute query
+    accounts_analytics_fetch_total_active = database.fetch_scalar(query)
+
+    # query fails
+    if not accounts_analytics_fetch_total_active['success']:
+        return common_database_error_response(accounts_analytics_fetch_total_active)
+    
+    # success
+    return common_success_response(accounts_analytics_fetch_total_active['data'])
+
+
+@bp_accounts.route("/analytics/total_activity", methods=["GET"])
+def analytics_total_activity():
+    query = """
+        SELECT COUNT(DISTINCT account_id) AS total
+        FROM account_logs
+        WHERE created_at >= NOW() - INTERVAL 24 HOUR;
+    """
+
+    # execute query
+    accounts_analytics_fetch_total_activity = database.fetch_scalar(query)
+
+    # query fails
+    if not accounts_analytics_fetch_total_activity['success']:
+        return common_database_error_response(accounts_analytics_fetch_total_activity)
+    
+    # success
+    return common_success_response(accounts_analytics_fetch_total_activity['data'])

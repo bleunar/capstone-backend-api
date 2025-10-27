@@ -56,8 +56,6 @@ def get():
     if not locations_fetch['success']:
         return common_database_error_response(locations_fetch)
     
-    print(locations_fetch['data'])
-
     # success
     return common_success_response(locations_fetch['data'])
 

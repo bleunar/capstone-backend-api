@@ -19,22 +19,25 @@ def get(id=None):
 
     # setup base query
     base_query = """
-        select
+        SELECT
             a.id,
             a.role_id,
-            ar.name as role_name,
+            ar.name AS role_name,
             ar.access_level,
-            a.first_name,
-            a.middle_name,
-            a.last_name,
+            CONCAT(
+                a.first_name,
+                IF(a.middle_name IS NOT NULL AND a.middle_name != '', CONCAT(' ', a.middle_name), ''),
+                ' ',
+                a.last_name
+            ) AS full_name,
             a.gender,
             DATE_FORMAT(a.birth_date, '%Y-%m-%d') AS birth_date,
             a.email,
             a.username,
             a.created_at,
             a.updated_at
-        from accounts as a
-        inner join account_roles as ar on a.role_id = ar.id
+        FROM accounts AS a
+        INNER JOIN account_roles AS ar ON a.role_id = ar.id;
     """
 
     # CONDITIONALS

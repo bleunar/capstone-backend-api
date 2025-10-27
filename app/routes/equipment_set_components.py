@@ -4,8 +4,14 @@ from ..services.security import generate_id
 from ..services import database
 from flask_jwt_extended import jwt_required
 from ..config import config
+from ..services.validation import check_json_payload
+from .equipment_set_activity import log_equipment_set_changes
+from flask_jwt_extended import get_jwt_identity
+from ..services.validation import check_json_payload, check_required_fields, common_success_response, common_error_response, common_database_error_response
+
 
 bp_equipment_set_components = Blueprint("equipment_set_components", __name__)
+
 
 @bp_equipment_set_components.route("/<id>", methods=["GET"])
 @jwt_required()
@@ -28,8 +34,7 @@ def get(id):
             eq_set_comp.avr_serial_number,
             eq_set_comp.headset_name,
             eq_set_comp.headset_serial_number,
-            eq_set_comp.camera_name,
-            eq_set_comp.camera_serial_number,
+            eq_set_comp.updated_at
         from equipment_set_components as eq_set_comp
         where equipment_set_id = %s;
     """
@@ -39,22 +44,28 @@ def get(id):
 
     # query fails
     if not equipment_set_components_fetch['success']:
-        result = jsonify({
-            "msg": equipment_set_components_fetch['msg']
-        })
-        return result, 400
+        return common_database_error_response(equipment_set_components_fetch)
+    
+    if equipment_set_components_fetch['data'] is None:
+        initialize_equipment_set_components(
+            equipment_set_id=id
+        )
 
     # success
-    return jsonify({
-        "data": equipment_set_components_fetch['data']
-    }), 200
+    return common_success_response(
+        data=equipment_set_components_fetch['data'],
+        message="Fetched Equipment Set Component"
+    )
 
 
 
 @bp_equipment_set_components.route("/<id>", methods=["PUT"])
+@jwt_required()
 @require_access('default')
 def edit(id):
-    data = request.get_json()
+    data, error_response = check_json_payload()
+    if error_response:
+        return error_response
 
     # fetch data forms
     sysunit_name = data.get('system_unit_name', '')
@@ -74,12 +85,6 @@ def edit(id):
 
     hset_name = data.get('headset_name', '')
     hset_serial = data.get('headset_serial_number', '')
-    
-    
-    if any(item is None for item in [sysunit_serial, mntr_serial, kbrd_serial, mouse_serial, sysunit_name, mntr_name, kbrd_name, mouse_name ]):
-        return jsonify({
-            "msg": "forms data incomplete"
-        }), 400
 
 
     # prepare query and parameters
@@ -117,26 +122,34 @@ def edit(id):
         id,
     )
 
+    old_data_fetched, old_data = fetch_equipment_component(id)
+
     equipment_set_component_updated = database.execute_single(base_query, base_params)
 
+    new_data_fetched, new_data = fetch_equipment_component(id)
+
+    if old_data_fetched and new_data_fetched and equipment_set_component_updated['success']:
+        account_id = get_jwt_identity()
+        logging = log_equipment_set_changes(account_id, id, old_data, new_data)
+
+        if(logging['success']):
+            print("Logging component Complete", "- "*50)
+    else:
+        print("Logging Failed", "! "*50)
+
     if not equipment_set_component_updated['success']:
-        result = jsonify({
-            "msg": equipment_set_component_updated['msg']
-        })
-        return result, 400
+        return common_database_error_response(equipment_set_component_updated)
 
-    result = jsonify({
-        "data": True
-    })
-    return result, 200
+    return common_success_response(
+        data=True,
+        message="Equipment Components Updated"
+    )
 
 
 
-# HELPER FUNCTIONS
-def initialize_equipment_set_components(equipment_set_id:str, data: dict):
+# ================================================== HELPER FUNCTIONS
 
-
-    print(data)
+def initialize_equipment_set_components(equipment_set_id:str, data: dict = {}):
 
     # setup and fetch data
     sysunit_name = data.get('system_unit_name', '')
@@ -160,6 +173,7 @@ def initialize_equipment_set_components(equipment_set_id:str, data: dict):
         values
             (%s, %s, %s, %s, %s, %s, %s);
     """
+
     base_params = (
         equipment_set_id,
         sysunit_name,
@@ -169,9 +183,44 @@ def initialize_equipment_set_components(equipment_set_id:str, data: dict):
         avr_name,
         hset_name,
     )
+
     equipment_set_component_added = database.execute_single(base_query, base_params)
 
     if not equipment_set_component_added['success']:
         return False
 
     return True
+
+
+# ========== HELPER FUNCTIONS
+
+def fetch_equipment_component(id: str):
+    base_query = """
+        select
+            eq_set_comp.equipment_set_id,
+            eq_set_comp.system_unit_name,
+            eq_set_comp.system_unit_serial_number,
+            eq_set_comp.monitor_name,
+            eq_set_comp.monitor_serial_number,
+            eq_set_comp.keyboard_name,
+            eq_set_comp.keyboard_serial_number,
+            eq_set_comp.mouse_name,
+            eq_set_comp.mouse_serial_number,
+            eq_set_comp.avr_name,
+            eq_set_comp.avr_serial_number,
+            eq_set_comp.headset_name,
+            eq_set_comp.headset_serial_number
+        from equipment_set_components as eq_set_comp
+        where equipment_set_id = %s;
+    """
+
+    # execute query
+    equipment_component_fetch = database.fetch_one(base_query, (id, ))
+
+    # query fails
+    if not equipment_component_fetch['success']:
+        return False, None
+
+    # success
+    return True, equipment_component_fetch['data']
+

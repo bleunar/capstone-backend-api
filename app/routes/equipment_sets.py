@@ -2,9 +2,10 @@ from flask import Blueprint, jsonify, request
 from ..services.jwt import require_access
 from ..services.security import generate_id
 from ..services import database
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..config import config
 from .equipment_set_components import initialize_equipment_set_components
+from .equipment_set_activity import log_equipment_set_changes
 from ..services.validation import check_json_payload, check_required_fields, common_success_response, common_error_response, common_database_error_response
 
 bp_equipment_sets = Blueprint("equipment_sets", __name__)
@@ -18,6 +19,7 @@ def get():
         select
             eq_set.id,
             eq_set.location_id,
+            locations.name as location_name,
             eq_set.name,
 
             eq_set.requires_avr,
@@ -35,6 +37,7 @@ def get():
             eq_set.created_at,
             eq_set.updated_at
         from equipment_sets as eq_set
+        join locations on eq_set.location_id = locations.id
     """
 
     # CONDITIONALS
@@ -59,7 +62,7 @@ def get():
         base_query += " WHERE " + " AND ".join(conditional_query)
     
     # sort the order by ascending
-    base_query += f"ORDER BY CAST(REGEXP_REPLACE(name, '[^0-9]', '') AS UNSIGNED);"
+    base_query += f"ORDER BY CAST(REGEXP_REPLACE(eq_set.name, '[^0-9]', '') AS UNSIGNED);"
     
 
     # closing statements
@@ -76,7 +79,64 @@ def get():
     return common_success_response(equipment_set_fetch['data'])
 
 
+@bp_equipment_sets.route("/location/<location_id>", methods=["GET"])
+@jwt_required()
+@require_access("guest")
+def get_full_location(location_id):
+    # setup base query
+    base_query = """
+        SELECT
+            eq_set.id AS equipment_set_id,
+            eq_set.name AS equipment_set_name,
+            eq_set.location_id,
+            loc.name AS location_name,
+
+            eq_set.requires_avr,
+            eq_set.requires_headset,
+
+            eq_set.plugged_power_cable,
+            eq_set.plugged_display_cable,
+
+            eq_set.connectivity,
+            eq_set.performance,
+            eq_set.status,
+            eq_set.issue,
+
+            eq_set.created_at AS set_created_at,
+            eq_set.updated_at AS set_updated_at,
+
+            eq_set_comp.system_unit_name,
+            eq_set_comp.system_unit_serial_number,
+            eq_set_comp.monitor_name,
+            eq_set_comp.monitor_serial_number,
+            eq_set_comp.keyboard_name,
+            eq_set_comp.keyboard_serial_number,
+            eq_set_comp.mouse_name,
+            eq_set_comp.mouse_serial_number,
+            eq_set_comp.avr_name,
+            eq_set_comp.avr_serial_number,
+            eq_set_comp.headset_name,
+            eq_set_comp.headset_serial_number,
+            eq_set_comp.updated_at AS components_updated_at
+
+        FROM equipment_sets AS eq_set
+        JOIN locations AS loc ON eq_set.location_id = loc.id
+        LEFT JOIN equipment_set_components AS eq_set_comp
+            ON eq_set.id = eq_set_comp.equipment_set_id
+        WHERE eq_set.location_id = %s
+        ORDER BY CAST(REGEXP_REPLACE(eq_set.name, '[^0-9]', '') AS UNSIGNED);
+    """
+
+    equipment_set_full_fetch = database.fetch_all(base_query, (location_id, ))
+
+    if not equipment_set_full_fetch['success']:
+        return common_database_error_response(equipment_set_full_fetch)
+
+    return common_success_response(equipment_set_full_fetch['data'])
+
+
 @bp_equipment_sets.route("/single", methods=["POST"])
+@jwt_required()
 @require_access('admin')
 def add_single():
     # Validate JSON payload
@@ -132,6 +192,7 @@ def add_single():
 
 
 @bp_equipment_sets.route("/batch", methods=["POST"])
+@jwt_required()
 @require_access('admin')
 def add_batch():
     # Validate JSON payload
@@ -180,8 +241,8 @@ def add_batch():
         result = database.execute_single(base_query, params)
 
         if result['success']:
-            initialize_equipment_set_components(set_id, data)
-            added_sets.append(name)
+            if initialize_equipment_set_components(set_id, data):
+                added_sets.append(name)
         else:
             failed_sets.append({
                 "name": name,
@@ -214,23 +275,18 @@ def edit(id):
     location_id = data['location_id']
     name = data['name']
 
-    requires_avr = "true" if data.get('requires_avr') else "false"
-    requires_headset = "true" if data.get('requires_headset') else "false"
+    requires_avr = data.get('requires_avr')
+    requires_headset = data.get('requires_headset')
 
-    plugged_power_cable =  "true" if data.get('plugged_power_cable') else "false"
-    plugged_display_cable =  "true" if data.get('plugged_display_cable') else "false"
+    plugged_power_cable =  data.get('plugged_power_cable')
+    plugged_display_cable = data.get('plugged_display_cable')
 
-    connectivity = data.get('connectivity', 'untested')
-    performance = data.get('performance', 'untested')
+    connectivity = data.get('connectivity')
+    performance = data.get('performance')
 
-    status = data.get('status', 'active')
+    status = data.get('status')
     issue = data.get('issue', '')
     
-
-    if any(item is None for item in [location_id, name, requires_avr, requires_headset, plugged_display_cable, plugged_power_cable, connectivity, performance, status]):
-        return jsonify({
-            "msg": "forms data incomplete"
-        }), 400
 
     # prepare query and parameters
     base_query = """
@@ -263,11 +319,24 @@ def edit(id):
         issue,
         id    
     )
+    
+    old_data_fetched, old_data = fetch_equipment_sets(id)
 
     equipment_set_updated = database.execute_single(base_query, base_params)
 
+    new_data_fetched, new_data = fetch_equipment_sets(id)
+
     if not equipment_set_updated['success']:
         return common_database_error_response(equipment_set_updated)
+    
+    if old_data_fetched and new_data_fetched and equipment_set_updated['success']:
+        account_id = get_jwt_identity()
+        logging = log_equipment_set_changes(account_id, id, old_data, new_data)
+
+        if(logging['success']):
+            print("Logging Complete", "- "*50)
+    else:
+        print("Logging Failed", "! "*50)
 
     return common_success_response(
         data=True,
@@ -304,3 +373,31 @@ def delete(id):
     })
     return result, 200
 
+
+def fetch_equipment_sets(id: str):
+    base_query = """
+        select
+            eq_set.id,
+            eq_set.location_id,
+            eq_set.name,
+            eq_set.requires_avr,
+            eq_set.requires_headset,
+            eq_set.plugged_power_cable,
+            eq_set.plugged_display_cable,
+            eq_set.connectivity,
+            eq_set.performance,
+            eq_set.status,
+            eq_set.issue
+        from equipment_sets as eq_set
+        where eq_set.id = %s;
+    """
+
+    # execute query
+    equipment_set_fetch = database.fetch_one(base_query, (id, ))
+
+    # query fails
+    if not equipment_set_fetch['success']:
+        return False, None
+
+    # success
+    return True, equipment_set_fetch['data']
